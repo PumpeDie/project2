@@ -6,11 +6,11 @@ L'objectif de cette section est de détailler l'architecture technique du systè
 
 Le capteur embarqué est une montre **LilyGo T-Watch S3**. Sa mission principale est de mesurer les accélérations via son accéléromètre interne et de transmettre ces données sous forme de paquets JSON via le protocole **MQTT** toutes les **5 secondes** vers le superviseur central.
 
-#### Fonctionnalité « Maintenance » (La faille introduite par design)
+**Fonctionnalité « Maintenance » (La faille introduite par design)**
 
 Pour permettre aux techniciens de reconfigurer l'identifiant des capteurs sans intervention physique (connexion USB), les ingénieurs ont ouvert un **port d'écoute UDP (3333)** sur la montre. L'envoi d'un paquet UDP vers ce port permet de mettre à jour dynamiquement le nom du capteur (`device_id`) en mémoire.
 
-#### La vulnérabilité — Buffer Overflow
+**La vulnérabilité — Buffer Overflow**
 
 La vulnérabilité majeure réside dans la gestion de la mémoire contiguë utilisée pour stocker les données de configuration. Les deux variables sont placées **côte à côte en mémoire** :
 
@@ -47,7 +47,7 @@ Si un attaquant envoie un paquet de plus de 32 octets, les octets supplémentair
 
 Le superviseur est un script Python exécuté sur un **Raspberry Pi 4**. Il assure la centralisation des alertes en s'abonnant au topic MQTT `capteurs/vibration`.
 
-#### Validation et Journalisation (La faille IT)
+**Validation et Journalisation (La faille IT)**
 
 Le système inclut une vérification pour s'assurer que seul l'appareil autorisé (`watch01`) peut soumettre des données. Cependant, suite à des exigences d'audit et de traçabilité, l'équipe IT a ajouté une fonction de journalisation automatique pour enregistrer chaque tentative de connexion anormale.
 
@@ -77,7 +77,7 @@ Si `device_id` contient des caractères spéciaux shell (`;`, `&&`, `` ` ``...),
 
 ---
 
-#### Tableau récapitulatif des vulnérabilités de la section 2
+**Tableau récapitulatif des vulnérabilités de la section 2**
 
 | Critère                    | OT — T-Watch (Buffer Overflow)            | IT — Raspberry Pi (Command Injection)      |
 | -------------------------- | ----------------------------------------- | ------------------------------------------ |
