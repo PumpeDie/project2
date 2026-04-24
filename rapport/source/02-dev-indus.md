@@ -1,8 +1,8 @@
-## 2 Développement du système industriel (Côté Ingénierie OT/IT)
+## Développement du système industriel (Côté Ingénierie OT/IT)
 
 L'objectif de cette section est de détailler l'architecture technique du système de surveillance vibratoire et d'expliquer les choix d'implémentation qui ont mené aux vulnérabilités actuelles. Dans un contexte d'Industrie 4.0, la convergence entre les technologies opérationnelles (OT) et informatiques (IT) crée souvent des zones de risques où la facilité de maintenance prime sur la sécurité.
 
-### 2.1 Le Capteur de Vibration (Firmware T-Watch)
+### Le Capteur de Vibration (Firmware T-Watch)
 
 Le capteur embarqué est une montre **LilyGo T-Watch S3**. Sa mission principale est de mesurer les accélérations via son accéléromètre interne et de transmettre ces données sous forme de paquets JSON via le protocole **MQTT** toutes les **5 secondes** vers le superviseur central.
 
@@ -43,7 +43,7 @@ Si un attaquant envoie un paquet de plus de 32 octets, les octets supplémentair
 
 ---
 
-### 2.2 Le Superviseur Central (Script Python sur Raspberry Pi)
+### Le Superviseur Central (Script Python sur Raspberry Pi)
 
 Le superviseur est un script Python exécuté sur un **Raspberry Pi 4**. Il assure la centralisation des alertes en s'abonnant au topic MQTT `capteurs/vibration`.
 
