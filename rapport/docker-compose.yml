@@ -1,0 +1,22 @@
+# Fonctionnement :
+# - `metadata.yaml` : Métadonnées et infos générales du rapport.
+# - `ressources/` : Figures et ressources externes du rapport. On utilise directement le chemin relatif à `/data/ressources` dans les sources, pas relatif au fichier.
+# - `sources/` : Fichiers markdown source. Traité par ordre alphabétique, donc conseillé de commencé le nom par un chiffre pour organisé l'ordre.
+#
+# Quand tout est fait, `docker compose up` depuis la racine du projet. Cela génère un fichier `output.pdf` à la racine aussi.
+
+services:
+  pandoc:
+    # build: .
+    image: pandoc/extra:latest
+    volumes:
+      - .:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        pandoc --pdf-engine=lualatex \
+        --syntax-highlighting=tango \
+        --metadata-file=/data/metadata.yaml \
+        --resource-path=/data/ressources \
+        /data/source/*.md \
+        -o /data/output.pdf
