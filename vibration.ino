@@ -122,19 +122,6 @@ void loop() {
         if (mqtt_client.connected()) {
             mqtt_client.publish("capteurs/vibration", payload);
         }
-
-        // Si l'ID a été altéré par le Buffer Overflow, on le restaure après l'envoi
-        if (strcmp(memory_block.device_id, "watch01") != 0) {
-            Serial.println("[!] Nettoyage de la mémoire corrompue...");
-            
-            // Restauration de la valeur saine
-            memset(memory_block.rx_buffer, 0, sizeof(memory_block.rx_buffer));
-            strcpy(memory_block.device_id, "watch01");
-            
-            // Mise à jour de l'écran pour effacer les preuves visuelles
-            String idStr = "ID: " + String(memory_block.device_id);
-            lv_label_set_text(label_id, idStr.c_str());
-        }
     }
     
     delay(2);
