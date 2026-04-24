@@ -1,134 +1,63 @@
 #!/usr/bin/env python3
 import json
-import time
-from collections import deque
+import os
 import paho.mqtt.client as mqtt
 
+# --- Configuration ---
 BROKER_HOST = "localhost"
 BROKER_PORT = 1883
-
-TOPIC_RAW = "factory/machine1/vibration/raw"
-TOPIC_SPOOFED = "factory/machine1/vibration/spoofed"
-
-DEVICE_ID_EXPECTED = "watch01"
-
-# MODE = "vulnerable"   # accepte la dernière valeur reçue, peu importe la source
-MODE = "secure"         # n'accepte que raw + device_id attendu + checks simples
-
-last_raw = None
-last_spoofed = None
-decision = None
-
-recent_timestamps = deque(maxlen=10)
-
-def classify(vibration: float) -> str:
-    if vibration < 1.0:
-        return "normal"
-    elif vibration < 2.0:
-        return "warning"
-    return "critical"
-
-def source_is_valid(topic: str, data: dict) -> bool:
-    if topic != TOPIC_RAW:
-        return False
-    if data.get("device_id") != DEVICE_ID_EXPECTED:
-        return False
-    if "timestamp" not in data or "vibration" not in data:
-        return False
-    return True
-
-def value_is_consistent(data: dict) -> bool:
-    try:
-        ts = int(data["timestamp"])
-        vib = float(data["vibration"])
-    except (ValueError, TypeError):
-        return False
-
-    now = int(time.time())
-
-    # timestamp trop ancien ou trop dans le futur
-    if ts < now - 60 or ts > now + 10:
-        return False
-
-    # valeur absurde
-    if vib < 0 or vib > 100:
-        return False
-
-    # anti-rejeu simple
-    if ts in recent_timestamps:
-        return False
-    recent_timestamps.append(ts)
-
-    return True
-
-def render():
-    print("\n" + "=" * 60)
-    print(f"MODE: {MODE}")
-    print(f"RAW     : {last_raw}")
-    print(f"SPOOFED : {last_spoofed}")
-    print(f"DECISION: {decision}")
-    print("=" * 60)
-
-def update_decision(topic: str, data: dict):
-    global last_raw, last_spoofed, decision
-
-    try:
-        vib = float(data["vibration"])
-    except (KeyError, ValueError, TypeError):
-        print("[!] Message ignoré: vibration invalide")
-        return
-
-    state = classify(vib)
-
-    if topic == TOPIC_RAW:
-        last_raw = {"vibration": vib, "state": state, "device_id": data.get("device_id"), "timestamp": data.get("timestamp")}
-    elif topic == TOPIC_SPOOFED:
-        last_spoofed = {"vibration": vib, "state": state, "device_id": data.get("device_id"), "timestamp": data.get("timestamp")}
-
-    if MODE == "vulnerable":
-        decision = {
-            "source": "last_message",
-            "accepted_topic": topic,
-            "vibration": vib,
-            "state": state,
-        }
-    else:
-        if source_is_valid(topic, data) and value_is_consistent(data):
-            decision = {
-                "source": "validated_raw",
-                "accepted_topic": topic,
-                "vibration": vib,
-                "state": state,
-            }
-        else:
-            print(f"[REJECTED] topic={topic} payload={data}")
-
-    render()
+TOPIC = "capteurs/vibration"
+EXPECTED_DEVICE = "watch01"
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
-    print(f"[MQTT] Connecté au broker, code={reason_code}")
-    client.subscribe(TOPIC_RAW)
-    client.subscribe(TOPIC_SPOOFED)
-    print(f"[MQTT] Abonné à {TOPIC_RAW}")
-    print(f"[MQTT] Abonné à {TOPIC_SPOOFED}")
+    print(f"[MQTT] Connecté au broker, abonnement au topic: {TOPIC}")
+    client.subscribe(TOPIC)
 
 def on_message(client, userdata, msg):
-    print(f"[RX] {msg.topic} -> {msg.payload.decode(errors='ignore')}")
+    payload_str = msg.payload.decode(errors='ignore')
+    print(f"\n[RX] {msg.topic} -> {payload_str}")
+    
     try:
-        data = json.loads(msg.payload.decode())
+        data = json.loads(payload_str)
     except json.JSONDecodeError:
-        print("[!] JSON invalide")
+        print("[!] JSON invalide, message ignoré.")
         return
 
-    update_decision(msg.topic, data)
+    device_id = data.get("device_id", "inconnu")
+    vibration = data.get("vibration", 0.0)
+
+    # 1. Validation métier (Le système se croit sécurisé)
+    if device_id == EXPECTED_DEVICE:
+        print(f"[VALIDÉ] Appareil légitime. Vibration: {vibration}")
+        with open("usine_data.csv", "a") as f:
+            f.write(f"{data.get('timestamp')},{vibration}\n")
+        # Traitement normal des données de l'usine...
+    else:
+        # 2. Rejet et Journalisation (LA VULNÉRABILITÉ)
+        print(f"[REJETÉ] ID suspect détecté : {device_id}")
+        print("[AUDIT] Écriture dans les logs de sécurité...")
+        
+        # Le script utilise os.system en concaténant directement l'entrée utilisateur
+        # sans aucune désinfection (sanitization). C'est ici que le reverse shell s'active.
+        commande_log = f"echo 'Tentative rejetée du device : {device_id}' >> audit_rejets.log"
+        
+        os.system(commande_log)
 
 def main():
+    # Utilisation de l'API v2 requise par les versions récentes de paho-mqtt
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
 
-    client.connect(BROKER_HOST, BROKER_PORT, 60)
-    client.loop_forever()
+    print("=== Superviseur Industriel Démarré ===")
+    print(f"En attente des données de {EXPECTED_DEVICE}...\n")
+    
+    try:
+        client.connect(BROKER_HOST, BROKER_PORT, 60)
+        client.loop_forever()
+    except KeyboardInterrupt:
+        print("\nArrêt du superviseur.")
+        client.disconnect()
 
 if __name__ == "__main__":
     main()
