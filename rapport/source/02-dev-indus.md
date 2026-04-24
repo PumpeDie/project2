@@ -1,22 +1,66 @@
-# Développement du système industriel (Côté Ingénierie OT/IT)
+# 2 Développement du système industriel (Côté Ingénierie OT/IT)
 
-L'objectif ici est d'expliquer "pourquoi" le système a été codé ainsi. On justifie les failles par des "besoins métiers" (facilité de maintenance, traçabilité).
+L'objectif de cette section est de détailler l'architecture technique du système de surveillance vibratoire et d'expliquer les choix d'implémentation qui ont mené aux vulnérabilités actuelles. Dans un contexte d'Industrie 4.0, la convergence entre les technologies opérationnelles (OT) et informatiques (IT) crée souvent des zones de risques où la facilité de maintenance prime sur la sécurité.
 
-## Le Capteur de Vibration (Firmware T-Watch)
+## 2.1 Le Capteur de Vibration (Firmware T-Watch)
 
-- Points à rédiger :
-  - La boucle principale : Lecture des vibrations et envoi d'un JSON via MQTT toutes les 5 secondes vers le serveur central.
-  - La fonctionnalité "Maintenance" (La faille introduite par design) : Expliquer que pour éviter de rebrancher les montres en USB à chaque changement de machine, les ingénieurs ont ajouté un port d'écoute UDP (3333). Si on envoie un paquet UDP, cela met à jour le nom du capteur (device_id) en mémoire.
-- Éléments à inclure :
-  - Code C++ : La structure mémoire contiguë struct VulnerableMemory { char rx_buffer[32]; char device_id[128]; }; et la ligne fatale udp.read(memory_block.rx_buffer, packetSize);.
-  - Justification métier : "L'utilisation de udp.read() sans contrôle de taille a été jugée sans risque car le réseau local est considéré de confiance".
+Le capteur embarqué est une montre LilyGo T-Watch S3. Sa mission principale est de mesurer les accélérations via son accéléromètre interne et de transmettre ces données sous forme de paquets JSON via le protocole MQTT toutes les 5 secondes vers le superviseur central.
 
-## Le Superviseur Central (Script Python sur Raspberry Pi)
+**Fonctionnalité "Maintenance" (La faille introduite par design)**
+Pour permettre aux techniciens de reconfigurer l'identifiant des capteurs sans intervention physique (connexion USB), les ingénieurs ont ouvert un port d'écoute UDP (3333) sur la montre. L'envoi d'un paquet UDP vers ce port permet de mettre à jour dynamiquement le nom du capteur (`device_id`) en mémoire.
 
-- Points à rédiger :
-  - La collecte : Le script Python s'abonne au topic MQTT, vérifie que le JSON est valide, et écrit les données de vibration dans un fichier d'analyse métier (usine_data.csv).
-  - La sécurité "robuste" : Le script implémente une vérification stricte. Si l'identifiant (device_id) n'est pas dans la liste blanche (ex: "watch01"), la donnée est rejetée.
-  - L'audit de sécurité (La faille IT) : Pour des raisons de traçabilité, les ingénieurs IT exigent que chaque tentative de connexion anormale soit enregistrée dans un log système.
-- Éléments à inclure :
-  - Code Python : L'extrait montrant la validation (if device_id == EXPECTED_DEVICE:) et le log d'erreur avec os.system(...).
-  - Justification métier : "L'utilisation d'une commande système directe pour logger a été choisie pour sa rapidité d'implémentation par l'équipe IT."
+La vulnérabilité majeure réside dans la gestion de la mémoire contiguë utilisée pour stocker les données de configuration :
+
+```cpp
+// --- Memory Layout (Vulnérabilité) ---
+struct VulnerableMemory { 
+    char rx_buffer[32]; 
+    char device_id[128]; 
+};
+```
+
+Lors de la réception d'un paquet de configuration, le firmware utilise la fonction `udp.read()` en lui passant la taille réelle du paquet réseau (`packetSize`) sans vérifier si celle-ci dépasse la capacité du tampon de réception (`rx_buffer`) :
+
+```cpp
+// 1. Écoute UDP et Buffer Overflow
+int packetSize = udp.parsePacket();
+if (packetSize) {
+    // Le Buffer Overflow : lecture sans limite de taille
+    udp.read(memory_block.rx_buffer, packetSize);
+
+    // Mise à jour de l'affichage sur l'écran de la montre
+    String idStr = "ID: " + String(memory_block.device_id);
+    lv_label_set_text(label_id, idStr.c_str());
+}
+```
+
+> **Justification métier :** Cette implémentation a été choisie pour sa légèreté. L'absence de vérification de bornes a été jugée acceptable par l'équipe OT car le réseau local industriel est considéré comme un périmètre de confiance.
+
+## 2.2 Le Superviseur Central (Script Python sur Raspberry Pi)
+
+Le superviseur est un script Python exécuté sur un Raspberry Pi 4. Il assure la centralisation des alertes en s'abonnant au topic MQTT `capteurs/vibration`.
+
+**Validation et Journalisation (La faille IT)**
+Le système inclut une vérification pour s'assurer que seul l'appareil autorisé (`watch01`) peut soumettre des données. Cependant, suite à des exigences d'audit et de traçabilité, l'équipe IT a ajouté une fonction de journalisation automatique pour enregistrer chaque tentative de connexion anormale.
+
+Le script utilise une commande système directe pour écrire dans les logs, créant une vulnérabilité d'injection de commande (Command Injection) :
+
+```python
+# 1. Validation métier (Le système se croit sécurisé)
+if device_id == EXPECTED_DEVICE:
+    print(f"[VALIDÉ] Appareil légitime. Vibration: {vibration}")
+    with open("usine_data.csv", "a") as f:
+        f.write(f"{data.get('timestamp')},{vibration}\n")
+else:
+    # 2. Rejet et Journalisation (LA VULNÉRABILITÉ)
+    print(f"[REJETÉ] ID suspect détecté : {device_id}")
+    print("[AUDIT] Écriture dans les logs de sécurité...")
+    
+    # Le script utilise os.system en concaténant directement l'entrée utilisateur
+    # sans aucune désinfection (sanitization).
+    commande_log = f"echo 'Tentative rejetée du device : {device_id}' >> audit_rejets.log"
+    
+    os.system(commande_log)
+```
+
+> **Justification métier :** L'utilisation de `os.system` a été privilégiée pour sa rapidité d'implémentation par l'équipe IT. L'identifiant de l'appareil a été considéré comme une donnée fiable provenant du matériel, sans anticiper qu'un débordement de tampon côté OT permettrait à un attaquant de modifier cette valeur pour injecter des commandes arbitraires.
