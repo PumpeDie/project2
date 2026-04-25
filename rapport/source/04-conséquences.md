@@ -50,6 +50,8 @@ EOF
 nohup python3 /tmp/falsifier.py >/dev/null 2>&1 &
 ```
 
+Bien que ce script de falsification réponde au besoin d'altération en temps réel, sa conception de type "force brute" présente des limites opérationnelles dans un scénario réel. Le fait de lire et de réécrire l'intégralité du fichier CSV toutes les demi-secondes génère une charge d'entrées/sorties (I/O) constante et particulièrement intensive. Sur une architecture matérielle comme celle du Raspberry Pi, dont le stockage repose sur une carte SD, cette sollicitation extrême laisse une empreinte de performance anormale. Elle est rapidement détectable par un outil de monitoring système et risque de provoquer une usure prématurée du support de stockage, compromettant potentiellement la discrétion à long terme de l'attaquant.
+
 ### Preuve expérimentale
 
 L'exécution du script `falsifier.py` démontre l'efficacité de l'altération des données en temps réel. Le test a été réalisé en simulant une défaillance mécanique (vibrations élevées) sur la montre, puis en activant le malware via le reverse shell.
@@ -88,13 +90,11 @@ Une fois le processus `python3 /tmp/falsifier.py` lancé en tâche de fond, le s
 
 L'analyse de cette séquence confirme la furtivité de l'attaque : pour le superviseur IT et les tableaux de bord de l'usine, la machine semble être revenue à un état stable (0.80), alors que la défaillance physique persiste en réalité. Cette manipulation neutralise toute possibilité de maintenance préventive.
 
-Preuve visuelle : voir \ref{csv}
+**Preuve visuelle :**
 
 
-![Fichier CSV falsifié\label{csv}](usine-falsifie.png){height=300px}
+![Fichier CSV falsifié](usine-falsifie.png){height=300px}
 
-
-\newpage
 
 ## Conséquences Industrielles (L'Impact Métier)
 
