@@ -59,10 +59,10 @@ Dans le cadre de l'exploitation de la vulnérabilité de dépassement de tampon 
 
 La compromission du capteur OT permet de fournir des données formatées au superviseur IT. Une analyse comportementale est menée en injectant des caractères d'échappement liés aux terminaux Linux (guillemets simples, point-virgule). L'injection de la charge utile `watch01'; sleep 10 #` provoque un gel immédiat du traitement des messages MQTT sur le serveur cible pour une durée de 10 secondes. Cette réaction temporelle confirme que le serveur d'audit exécute aveuglément les données reçues via une fonction système synchrone (type `os.system`), caractérisant ainsi une faille d'injection de commande.
 
-On ne peut pas vraiment montrer cela avec une capture d'écran, mais il suffit d'avoir, coté attaquant :
+Bien qu'une capture d'écran statique ne puisse illustrer un délai temporel, l'observation du flux confirme ce comportement. La procédure d'audit côté attaquant est la suivante :
 
 - une fenêtre qui exécute `mosquitto_sub -h 10.42.0.33 -t '#' -v`, on remarque une arrivée des messages toutes les 5 secondes
-- une autre fenetre où on injecte notre commande :
+- une autre fenêtre où on injecte notre commande :
 
   ```bash
   echo -n "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwatch01'; sleep 10 #" | nc -u -w 1 10.42.0.182 3333
@@ -81,7 +81,7 @@ La réussite de l'injection IT repose sur l'exploitation précise des métacarac
 
 L'exploitation finale repose sur la combinaison des deux vulnérabilités afin d'exécuter un mouvement latéral depuis le réseau vers le serveur IT, tout en maintenant une furtivité totale pour masquer l'intrusion.
 
-L'attaque est architecturée en deux phases exécutées de manière séquentielle :
+L'attaque est structurée en deux phases exécutées de manière séquentielle :
 
 1. **L'exécution de la charge (Reverse Shell) :** Création d'un tunnel réseau persistant (`mkfifo` / `nc`). Ce processus est volontairement encapsulé dans un sous-shell (`&`) pour s'exécuter en arrière-plan, évitant ainsi de bloquer l'exécution du script de supervision et de causer un déni de service.
 2. **La restauration de la mémoire (Furtivité) :** L'exploitation d'un *Buffer Overflow* classique laisse la mémoire du microcontrôleur corrompue (syndrome de la "mémoire sale"). Une fois la charge exécutée, l'attaquant envoie un second paquet ciblé pour écraser le début du tampon avec l'identifiant légitime (`watch01`), suivi d'un octet nul (`\x00`). Cet octet nul agit comme un terminateur de chaîne strict en C++, forçant le firmware de la montre à ignorer le reste de la mémoire corrompue.
