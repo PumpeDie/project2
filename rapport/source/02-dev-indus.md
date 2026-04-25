@@ -41,8 +41,6 @@ Si un attaquant envoie un paquet de plus de 32 octets, les octets supplémentair
 
 > **Justification métier :** Cette implémentation a été choisie pour sa légèreté. L'absence de vérification de bornes a été jugée acceptable par l'équipe OT car le réseau local industriel est considéré comme un périmètre de confiance.
 
----
-
 ## Le Superviseur Central (Script Python sur Raspberry Pi)
 
 Le superviseur est un script Python exécuté sur un **Raspberry Pi 4**. Il assure la centralisation des alertes en s'abonnant au topic MQTT `capteurs/vibration`.
@@ -57,8 +55,9 @@ Le script utilise une **commande système directe** pour écrire dans les logs, 
 # 1. Validation métier (Le système se croit sécurisé)
 if device_id == EXPECTED_DEVICE:
     print(f"[VALIDÉ] Appareil légitime. Vibration: {vibration}")
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open("usine_data.csv", "a") as f:
-        f.write(f"{data.get('timestamp')},{vibration}\n")
+        f.write(f"{timestamp},{vibration}\n")
 else:
     # 2. Rejet et Journalisation (LA VULNÉRABILITÉ)
     print(f"[REJETÉ] ID suspect détecté : {device_id}")
@@ -75,9 +74,6 @@ Si `device_id` contient des caractères spéciaux shell (`;`, `&&`, `` ` ``...),
 
 > **Justification métier :** L'utilisation de `os.system` a été privilégiée pour sa rapidité d'implémentation par l'équipe IT. L'identifiant de l'appareil a été considéré comme une donnée fiable provenant du matériel, sans anticiper qu'un débordement de tampon côté OT permettrait à un attaquant de modifier cette valeur pour injecter des commandes arbitraires.
 
----
-
-**Tableau récapitulatif des vulnérabilités de la section 2**
 
 | Critère                    | OT — T-Watch (Buffer Overflow)            | IT — Raspberry Pi (Command Injection)      |
 | -------------------------- | ----------------------------------------- | ------------------------------------------ |
@@ -86,3 +82,4 @@ Si `device_id` contient des caractères spéciaux shell (`;`, `&&`, `` ` ``...),
 | **Hypothèse erronée**      | Le réseau local est une zone de confiance | `device_id` vient du matériel, donc fiable |
 | **Justification initiale** | Légèreté d'implémentation                 | Rapidité de développement                  |
 | **Impact si exploitée**    | Écriture arbitraire dans `device_id`      | Exécution de code arbitraire sur le Pi     |
+:   Récapitulatif des vulnérabilités de la section 2
