@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import datetime
 import paho.mqtt.client as mqtt
 
 # --- Configuration ---
@@ -29,8 +30,12 @@ def on_message(client, userdata, msg):
     # 1. Validation métier (Le système se croit sécurisé)
     if device_id == EXPECTED_DEVICE:
         print(f"[VALIDÉ] Appareil légitime. Vibration: {vibration}")
+        
+        # Récupération du timestamp
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         with open("usine_data.csv", "a") as f:
-            f.write(f"{data.get('timestamp')},{vibration}\n")
+            f.write(f"{timestamp},{vibration}\n")
         # Traitement normal des données de l'usine...
     else:
         # 2. Rejet et Journalisation (LA VULNÉRABILITÉ)
