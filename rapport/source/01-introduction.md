@@ -6,9 +6,13 @@
 
 La **LilyGo T-Watch S3** est un microcontrôleur basé sur un **ESP32** équipé d'un écran tactile et d'une connectivité Wi-Fi. Son rôle dans ce projet est de servir comme capteur de vibration portable, capable de mesurer les accélérations via son accéléromètre interne et de transmettre ces données en temps réel.
 
+![Photo de notre LilyGo T-Watch S3](twatch.jpg){height=300px}
+
+
 ### Système de supervision
 
 Un **Raspberry Pi 4** exécute les services de supervision centrale :
+
 - Héberge un broker **MQTT** (Mosquitto) pour la collecte centralisée des données
 - Assure le stockage et la journalisation des mesures
 - Déclenche les alertes basées sur les seuils de vibration
@@ -16,6 +20,8 @@ Un **Raspberry Pi 4** exécute les services de supervision centrale :
 ### Infrastructure d'attaque
 
 Un **PC d'attaque** connecté au même réseau local, exécutant un système d'exploitation Linux, permet de tester les vulnérabilités du système en tant qu'acteur malveillant.
+
+![Photo de notre montage physique](setup.jpg){height=300px}
 
 ## Situation et Scénario
 
