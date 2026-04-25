@@ -93,7 +93,7 @@ L'analyse de cette séquence confirme la furtivité de l'attaque : pour le super
 **Preuve visuelle :**
 
 
-![Fichier CSV falsifié](usine-falsifie.png){height=300px}
+![Fichier CSV falsifié](usine-falsifie.png){width=100%}
 
 
 ## Conséquences Industrielles (L'Impact Métier)
