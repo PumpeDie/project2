@@ -53,6 +53,7 @@ L'analyse de l'équipement OT révèle un port UDP (3333) en écoute. Une techni
 
 ![Capture d'écran de l'overflow, effectué par l'attaquant](screen-overflow.png){width=100%}
 
+Dans le cadre de l'exploitation de la vulnérabilité de dépassement de tampon (Buffer Overflow), la charge utile envoyée débute par une séquence exacte de 32 caractères "A". Ce nombre n'est pas arbitraire : il correspond à la capacité maximale allouée au tampon de réception (`rx_buffer`) dans la mémoire du microcontrôleur. En saturant mathématiquement cet espace précis, les caractères subséquents de la charge utile (tels que `HACKED` ou le code du reverse shell) débordent mécaniquement dans l'espace mémoire contigu, écrasant ainsi la valeur légitime de la variable `device_id` de manière prédictible.
 
 ## Identification de la Vulnérabilité Serveur (Injection IT)
 
@@ -60,7 +61,7 @@ La compromission du capteur OT permet de fournir des données formatées au supe
 
 On ne peut pas vraiment montrer cela avec une capture d'écran, mais il suffit d'avoir, coté attaquant :
 
-- une fenetre qui exécute `mosquitto_sub -h 10.42.0.33 -t '#' -v`, on remarque une arrivée des messages toutes les 5 secondes
+- une fenêtre qui exécute `mosquitto_sub -h 10.42.0.33 -t '#' -v`, on remarque une arrivée des messages toutes les 5 secondes
 - une autre fenetre où on injecte notre commande :
 
   ```bash
@@ -68,6 +69,12 @@ On ne peut pas vraiment montrer cela avec une capture d'écran, mais il suffit d
   ```
 
 - on observe un délai de 10 secondes dans les messages MQTT, et on voit le message avec le `device_id` modifié
+
+La réussite de l'injection IT repose sur l'exploitation précise des métacaractères du shell Linux. La charge utile `watch01'; sleep 10 #` se décompose en trois éléments syntaxiques essentiels pour détourner l'exécution de la fonction `os.system` :
+
+- Le guillemet simple (`'`) : Il ferme prématurément la chaîne de caractères de la commande echo initialement prévue par le script de journalisation.
+- Le point-virgule (`;`) : Il agit comme un terminateur et séparateur d'instructions, forçant le système d'exploitation à exécuter la commande malveillante injectée (`sleep 10` ici) immédiatement après la première.
+- Le dièse (`#`) : Il commente tout le reste de la ligne d'origine (`>> audit_rejets.log`), neutralisant la fin de la commande légitime pour éviter une erreur de syntaxe qui ferait échouer l'exécution.
 
 
 ## Exploitation Finale : Le Chained Exploit (Mouvement Latéral)
