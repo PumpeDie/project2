@@ -29,6 +29,27 @@ struct VulnerableMemory {
 
 VulnerableMemory memory_block;
 unsigned long last_publish = 0;
+// --- État de la machine (Simulation) ---
+bool is_critical = false;
+
+// Fonction appelée quand on touche le bouton sur l'écran
+static void btn_event_cb(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_CLICKED) {
+        is_critical = !is_critical; // On inverse l'état
+        
+        lv_obj_t * label = (lv_obj_t *)lv_event_get_user_data(e);
+        lv_obj_t * target = (lv_obj_t *)lv_event_get_target(e);
+        
+        if(is_critical) {
+            lv_label_set_text(label, "SIMU: DANGER");
+            lv_obj_set_style_bg_color(target, lv_palette_main(LV_PALETTE_RED), 0);
+        } else {
+            lv_label_set_text(label, "SIMU: NORMAL");
+            lv_obj_set_style_bg_color(target, lv_palette_main(LV_PALETTE_BLUE), 0);
+        }
+    }
+}
 
 void setup_wifi() {
     WiFi.begin(ssid, password);
@@ -78,6 +99,18 @@ void setup() {
     lv_label_set_text(label_id, "ID: Initialisation...");
     lv_obj_align(label_id, LV_ALIGN_TOP_MID, 0, 100);
 
+    // --- Bouton tactile de simulation d'alerte ---
+    lv_obj_t * btn = lv_btn_create(lv_screen_active());
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -20); // Placé en bas de l'écran
+    lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_BLUE), 0);
+
+    lv_obj_t * btn_label = lv_label_create(btn);
+    lv_label_set_text(btn_label, "SIMU: NORMAL");
+    lv_obj_center(btn_label);
+
+    // Lier l'événement tactile à notre fonction
+    lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_ALL, btn_label);
+
     // Initialisation de la mémoire vulnérable
     memset(&memory_block, 0, sizeof(VulnerableMemory));
     strcpy(memory_block.device_id, "watch01");
@@ -92,7 +125,7 @@ void setup() {
 }
 
 void loop() {
-    // TICK GRAPHIC
+    // TICK GRAPHIC (Indispensable pour rafraîchir l'écran)
     lv_timer_handler();
 
     if (WiFi.status() == WL_CONNECTED) {
@@ -106,22 +139,31 @@ void loop() {
         // Le Buffer Overflow : lecture sans limite de taille
         udp.read(memory_block.rx_buffer, packetSize);
         
-        // On affiche le nouvel état de `device_id` sur l'écran
+        // On affiche immédiatement le nouvel état de device_id sur l'écran
         String idStr = "ID: " + String(memory_block.device_id);
         lv_label_set_text(label_id, idStr.c_str());
     }
 
-    // 2. Publication MQTT toutes les 5 secondes
+    // 2. Publication MQTT (Toutes les 5 secondes)
     unsigned long now = millis();
     if (now - last_publish >= 5000) {
         last_publish = now;
 
         char payload[300]; 
-        snprintf(payload, sizeof(payload), "{\"device_id\": \"%s\", \"vibration\": 42.0}", memory_block.device_id);
-
+        float vibration_val;
+        if (is_critical) {
+            // Machine en surrégime : vibrations fortes (entre 1.30 et 1.70)
+            vibration_val = 1.50 + (random(-20, 21) / 100.0); 
+        } else {
+            // Machine saine : vibrations normales (entre 0.70 et 0.90)
+            vibration_val = 0.80 + (random(-10, 11) / 100.0);
+        }
+        
+        snprintf(payload, sizeof(payload), "{\"device_id\": \"%s\", \"vibration\": %.2f}", memory_block.device_id, vibration_val);
         if (mqtt_client.connected()) {
             mqtt_client.publish("capteurs/vibration", payload);
         }
+
     }
     
     delay(2);
